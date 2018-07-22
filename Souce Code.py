@@ -1,13 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Created on Thu Jul 19 15:39:06 2018
-
-@author: Lenovo
-"""
-
-# -*- coding: utf-8 -*-
-"""
-Created on Tue Apr 24 23:04:17 2018
+Created on Sat Jul 21 22:02:30 2018
 
 @author: Lenovo
 """
@@ -94,6 +87,7 @@ combine.loc[miss_bool,'Item_Weight'] = combine.loc[miss_bool,'Item_Identifier'].
 combine.isnull().sum()
 
 # we have seen some value of visibility values are zero which cannot be possible as item was sold
+
 sum(combine.Item_Visibility==0)
 # replace zero by nan
 combine.Item_Visibility = combine.Item_Visibility.replace(0,np.nan)
@@ -185,7 +179,7 @@ le= LabelEncoder()
 combine['Item_Identity'] = le.fit_transform(combine['Item_Identifier'])
 
 # drop unneccesary variables
-combine.drop(['Item_Type','Outlet_Establishment_Year'],axis=1,inplace=True)
+combine.drop(['Item_Type'],axis=1,inplace=True)
 
 
 # Though we know that making new fearture using from response variable id not a good practice 
@@ -220,7 +214,6 @@ df = pd.read_csv("Test.csv")
 sub = pd.DataFrame(df[['Item_Identifier','Outlet_Identifier']])
 
 
-
 # Feature importance 
 from sklearn.ensemble import RandomForestRegressor
 
@@ -231,13 +224,13 @@ feat_imp.plot(kind='bar', title='Feature Importances')
 plt.ylabel('Feature Importance Score')
 plt.show()
 
+
 from sklearn.model_selection import cross_val_score
 from sklearn.feature_selection import SelectFromModel
 from sklearn import metrics
-from sklearn.metrics import mean_absolute_error
 from sklearn.metrics import r2_score
-from sklearn.linear_model import LinearRegression, Ridge, Lasso
-from sklearn.ensemble import GradientBoostingRegressor
+from sklearn.linear_model import LinearRegression, Ridge
+
 
 
 
@@ -269,64 +262,137 @@ def martModel(model,train,test,predictors,target,sub,filename):
     sub.to_csv(filename, index=False)
     
 
-
-predictors = ['Item_Weight', 'Item_Visibility', 'Item_MRP',
-       'Fat_Content_Low Fat', 'Fat_Content_Regular', 'Item_Category_DR',
-       'Item_Category_FD', 'Item_Category_NC', 'NUM_OUT010', 'NUM_OUT013',
-       'NUM_OUT017', 'NUM_OUT018', 'NUM_OUT019', 'NUM_OUT027', 'NUM_OUT035',
-       'NUM_OUT045', 'NUM_OUT046', 'NUM_OUT049', 'OUT_SIZE_High',
-       'OUT_SIZE_Medium', 'OUT_SIZE_Small', 'CITY_Tier 1', 'CITY_Tier 2',
-       'CITY_Tier 3', 'Grocery Store', 'Supermarket Type1',
-       'Supermarket Type2', 'Supermarket Type3', 'Item_Identity',
-       'avg_Item_Sales']
-
-#
-
-
 # linear rgression with normalisation
-model1 = LinearRegression(normalize=True) 
-martModel(model1, train, test, predictors, target,sub, 'alg1.csv')
-coef1 = pd.Series(model1.coef_, predictors).sort_values()
+model = LinearRegression(normalize=True) 
+martModel(model, train, test, target,sub, 'M1.csv')
+coef1 = pd.Series(model.coef_, train.columns).sort_values()
 coef1.plot(kind='bar', title='Model Coefficients')
-# leaderboard  = 1271.26 
-
-predictors = ['Item_MRP', 'Sqrt_Item_Weight',
-       'log_Item_Visibility', 'Item_Visibility_MeanRatio',
-       'Fat_Content_Low Fat', 'Fat_Content_Regular', 'Item_Category_DR',
-       'Item_Category_FD', 'Item_Category_NC', 'NUM_OUT010', 'NUM_OUT013',
-       'NUM_OUT017', 'NUM_OUT018', 'NUM_OUT019', 'NUM_OUT027', 'NUM_OUT035',
-       'NUM_OUT045', 'NUM_OUT046', 'NUM_OUT049', 'OUT_SIZE_High',
-       'OUT_SIZE_Medium', 'OUT_SIZE_Small', 'CITY_Tier 1', 'CITY_Tier 2',
-       'CITY_Tier 3', 'Grocery Store', 'Supermarket Type1',
-       'Supermarket Type2', 'Supermarket Type3', 'Item_Identity',
-       'avg_Item_Sales']
-
-# linear rgression with normalisation
-model2 = LinearRegression(normalize=True) 
-martModel(model2, train, test, predictors, target,sub, 'alg2.csv')
-coef2 = pd.Series(model2.coef_, predictors).sort_values()
-coef2.plot(kind='bar', title='Model Coefficients')
-# leaderboard = 1270
+# leaderboard score = 1270
 
 
 # Ridge regression
-model3 = Ridge(alpha=0.05,normalize=True)
-martModel(model3,train,test,predictors,target,sub,'alg3.csv')
-coef3 = pd.Series(model3.coef_, predictors).sort_values()
-coef3.plot(kind='bar', title='Model Coefficients')
-# leaderboard = 1253.526
-
-from sklearn.ensemble import RandomForestRegressor
+model2 = Ridge(alpha=0.05,normalize=True)
+martModel(model2,train,test,target,sub,'M2.csv')
+coef2 = pd.Series(model2.coef_, train.columns).sort_values()
+coef2.plot(kind='bar', title='Model Coefficients')
+# leaderboard score = 1253
 
 
-model5 = RandomForestRegressor(n_estimators = 200,max_depth=8,min_samples_leaf=100, max_features=0.3
-                                ,random_state=3,n_jobs=-1,)
-martModel(model5, train, test, predictors, target, sub, 'alg11.csv')
-coef11 = pd.Series(model5.feature_importances_, predictors).sort_values(ascending=False)
-coef11.plot(kind='bar', title='Feature Importances')
-# leaderboard = 1198.96
+model3 = RandomForestRegressor(n_estimators = 250,max_depth=8,min_samples_split=50, max_features='sqrt',
+                               min_samples_leaf=20 ,random_state=3,n_jobs=-1)
+martModel(model3, train, test,target, sub, 'M3.csv')
+coef3 = pd.Series(model3.feature_importances_, train.columns).sort_values(ascending=False)
+coef3.plot(kind='bar', title='Feature Importances')
+# leaderboard score = 1193.96
 
 
+# now we wil use GBM Boosting algorithm and tune its parameters by grid Search
+# Model Building
+def martModel(model,train,predictors,target):
+    #Fit the algorithm on the data
+    model.fit(train[predictors],target)
+        
+    #Predict training set:
+    train_predictions = model.predict(train[predictors])
+
+    #Perform cross-validation:
+    cv_score = cross_val_score(model, train[predictors],target, cv=5, scoring='neg_mean_squared_error')
+    cv_score = np.sqrt(np.abs(cv_score))
+    R2_score =  r2_score(target, train_predictions)
+    
+    #Print model report:
+    print("\nModel Report")
+    print("RMSE : %.4g" % np.sqrt(metrics.mean_squared_error(target, train_predictions)))
+    print("CV Score : Mean - %.4g | Std - %.4g | Min - %.4g | Max - %.4g" % (np.mean(cv_score),np.std(cv_score),np.min(cv_score),np.max(cv_score)))
+    print("R2_Score : %s" % "{0:.4%}".format(R2_score))
+    
+    feat_imp = pd.Series(model.feature_importances_, predictors).sort_values(ascending=False)
+    feat_imp.plot(kind='bar', title='Feature Importances')
+    plt.ylabel('Feature Importance Score')
+    
+
+    
+def pred(model,test,predictors,sub,filename):
+    test_target = model.predict(test[predictors])
+    
+    #Export submission file:
+    sub['Item_Outlet_Sales'] = test_target
+    sub.to_csv(filename, index=False)
+    
+
+
+from sklearn.model_selection import GridSearchCV
+from sklearn.ensemble import GradientBoostingRegressor
+from pprint import pprint
+
+# Start by creating a baseline model using GBM without anytuning
+
+predictors = [x for x in train.columns ]
+gbm0 = GradientBoostingRegressor(random_state=10)
+martModel(gbm0, train, predictors,target)
+pred(gbm0,test,predictors,sub,'gbm0.csv')
+#  Leaderboard score =  1236
+
+# First we tune Number of trees
+predictors = [x for x in train.columns]
+param_test1 = {'n_estimators':range(20,81,10)}
+gsearch1 = GridSearchCV(estimator = GradientBoostingRegressor(learning_rate=0.1, 
+                                    min_samples_split=80,min_samples_leaf=50,max_depth=8,
+                                    max_features='sqrt',subsample=0.8,random_state=10), 
+                                    param_grid = param_test1, scoring='neg_mean_squared_error',
+                                    n_jobs=4,iid=False, cv=3)
+
+gsearch1.fit(train[predictors],target)
+pprint(gsearch1.grid_scores_)
+pprint(gsearch1.best_params_)
+print(gsearch1.best_score_)
+# n tree = 40
+
+# The order of tuning variables should be decided carefully. 
+# You should take the variables with a higher impact on outcome first
+
+param_test2 = {'max_depth':range(3,16,2)}
+gsearch2 = GridSearchCV(estimator = GradientBoostingRegressor(learning_rate=0.1, n_estimators=40, max_features='sqrt', subsample=0.8, random_state=10), 
+param_grid = param_test2, scoring='neg_mean_squared_error',n_jobs=4,iid=False, cv=3)
+
+gsearch2.fit(train[predictors],target)
+pprint(gsearch2.grid_scores_)
+pprint(gsearch2.best_params_)
+print(gsearch2.best_score_)
+# max depth= 4
+
+
+param_test3 = {'min_samples_split':range(40,201,10)}
+gsearch3 = GridSearchCV(estimator = GradientBoostingRegressor(learning_rate=0.1, n_estimators=40,max_depth=5, 
+                       max_features='sqrt', subsample=0.8, random_state=10), 
+           param_grid = param_test3, scoring='neg_mean_squared_error',n_jobs=4,iid=False, cv=3)
+
+gsearch3.fit(train[predictors],target)
+pprint(gsearch3.grid_scores_)
+pprint(gsearch3.best_params_)
+print(gsearch3.best_score_)
+# min_samples_split = 140
+
+martModel(gsearch3.best_estimator_,train,predictors,target)
+pred(gsearch3.best_estimator_,test,predictors,sub,'gbm4.csv')
+# Leaderboard score = 1183.84
+
+
+param_test4 = {'min_samples_leaf':range(20,140,10)}
+gsearch4 = GridSearchCV(estimator = GradientBoostingRegressor(learning_rate=0.1, n_estimators=40,max_depth=5, 
+                      min_samples_split=140, max_features='sqrt', subsample=0.8, random_state=10), 
+           param_grid = param_test4, scoring='neg_mean_squared_error',n_jobs=4,iid=False, cv=3)
+
+gsearch4.fit(train[predictors],target)
+pprint(gsearch4.grid_scores_)
+pprint(gsearch4.best_params_)
+print(gsearch4.best_score_)
+# min_samples_leaf = 30
+
+
+martModel(gsearch4.best_estimator_,train,predictors,target)
+pred(gsearch4.best_estimator_,test,predictors,sub,'gbm5.csv')
+# 1186.08
 
 
 
